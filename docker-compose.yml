@@ -1,0 +1,12 @@
+# docker-compose.yml
+version: "3"
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.42
+    ports:
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"   # UI
+      - "14268:14268"   # Collector
+      - "14250:14250"
