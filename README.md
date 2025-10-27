@@ -52,6 +52,10 @@ go build -o bin/server-B ./server-B
 # 运行
 ./bin/server-A &
 ./bin/server-B &
+
+# 发送测试请求 （如果不带 Trace-Id ，接口内部自动生成一个 并返回）
+curl -v -H "Trace-Id: 1111" http://localhost:8080/callb 
+curl -v -H  http://localhost:8080/callb 
 ```
 
 常见问题与排查建议

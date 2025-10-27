@@ -7,7 +7,6 @@ import (
     "io/ioutil"
     "log"
     "net/http"
-    // "os"
     "time"
 
     "go.opentelemetry.io/otel"
@@ -15,10 +14,11 @@ import (
     "go.opentelemetry.io/otel/propagation"
     "go.opentelemetry.io/otel/sdk/resource"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
-    // "go.opentelemetry.io/otel/trace"
     semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
     "github.com/gorilla/mux"
 )
+
+const TraceIDHeader = "Trace-Id"
 
 func initTracer() func() {
     exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://localhost:14268/api/traces")))
@@ -50,14 +50,20 @@ func main() {
         ctx := req.Context()
         tracer := otel.Tracer("service-a")
 
-        // 使用 TraceID
-        ctx, span := tracer.Start(ctx, "service-a-span")
-        defer span.End()
+        // Check if Trace-Id is present in the request headers
+        traceID := req.Header.Get(TraceIDHeader)
+        if traceID == "" {
+            // Generate a new Trace-ID if not present
+            _, span := tracer.Start(ctx, "service-a-span")
+            defer span.End()
+            traceID = span.SpanContext().TraceID().String()
+        } else {
+            // Use the existing Trace-ID
+            ctx = propagation.TraceContext{}.Extract(ctx, propagation.HeaderCarrier(req.Header))
+        }
 
-        // 从请求 header 获取 traceparent (记录)
-        traceparent := req.Header.Get("traceparent")
-        if traceparent != "" {
-            log.Println("Received traceparent:", traceparent)
+        if traceID != "" {
+            w.Header().Set(TraceIDHeader, traceID)
         }
 
         // 调用服务 B
@@ -72,21 +78,8 @@ func main() {
         }
         body, _ := ioutil.ReadAll(resp.Body)
 
-        // 从当前 span 获取 trace id
-        traceID := span.SpanContext().TraceID().String()
-        // 如果 B 返回了 trace header，也读取出来以便在响应中展示
-        bTrace := resp.Header.Get("Trace-Id")
-
-        // 将 trace id 返回给最终客户端（header + body）
-        if traceID != "" {
-            w.Header().Set("Trace-Id", traceID)
-        }
-        if bTrace != "" {
-            w.Header().Set("Trace-Id-From-B", bTrace)
-        }
-
-        // 响应内容包含来自 B 的原始 body 和 trace id 信息
-        fmt.Fprintf(w, "Service A received: %s\nservice-a-trace_id=%s\nservice-b-trace_id=%s", string(body), traceID, bTrace)
+        // 响应内容包含来自 B 的原始 body 和统一的 trace id 信息（只显示一个 trace id）
+        fmt.Fprintf(w, "Service A received: %s\n Trace-Id = %s \n", string(body), traceID)
 
         time.Sleep(2000 * time.Millisecond) // 模拟处理时间
     })

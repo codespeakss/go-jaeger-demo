@@ -18,6 +18,8 @@ import (
     "github.com/gorilla/mux"
 )
 
+const TraceIDHeader = "Trace-Id"
+
 func initTracer() func() {
     exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://localhost:14268/api/traces")))
     if err != nil {
@@ -57,7 +59,7 @@ func main() {
         // 获取 trace id 并返回给调用方 (header + body)
         traceID := span.SpanContext().TraceID().String()
         if traceID != "" {
-            w.Header().Set("Trace-Id", traceID)
+            w.Header().Set(TraceIDHeader, traceID)
         }
 
         time.Sleep(1000 * time.Millisecond) // 模拟处理时间
